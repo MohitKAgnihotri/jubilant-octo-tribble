@@ -2,6 +2,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include "commands.h"
 
 void client_process_quit(int socket_fd)
@@ -37,6 +38,8 @@ void client_process_quit(int socket_fd)
         }
         printf("%s", server_response.response_payload);
     } while (server_response.number_of_response_in_flight > 0);
+
+    pthread_exit(0);
 }
 
 void client_process_login(int socket_fd)

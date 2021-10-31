@@ -106,11 +106,6 @@ int main(int argc, char *argv[])
     {
         unsigned int choice;
         print_client_menu();
-
-        if (choice == (unsigned int) QUIT)
-        {
-            is_client_active = false;
-        }
         scanf("%d",&choice);
         process_client_command(socket_fd, choice);
     }

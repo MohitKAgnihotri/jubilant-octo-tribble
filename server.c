@@ -62,10 +62,6 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-
-    /**/
-
-
     while (1) {
 
         /* Accept connection to client. */
@@ -76,9 +72,11 @@ int main(int argc, char *argv[])
             continue;
         }
 
+        /*Create client specific data structure*/
         _client_interface *thread_arg = (_client_interface *) malloc(sizeof(_client_interface));
         thread_arg->client_socket = new_socket_fd;
 
+        /*Get the clients IP address */
         struct sockaddr_in* pV4Addr = (struct sockaddr_in*)&client_address;
         struct in_addr ipAddr = pV4Addr->sin_addr;
         inet_ntop( AF_INET, &ipAddr, thread_arg->str, INET_ADDRSTRLEN );
@@ -95,6 +93,9 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+/*
+ * Function to create the server socket.
+ * */
 
 int CreateServerSocket(int port)
 {
@@ -132,22 +133,27 @@ int CreateServerSocket(int port)
     return socket_fd;
 }
 
-void SetupSignalHandler() {/* Assign signal handlers to signals. */
+/* Function to configure the signal handlers. */
+void SetupSignalHandler()
+{
+    /* Assign signal handlers to signals. */
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
         perror("signal");
         exit(1);
     }
+
     if (signal(SIGTERM, signal_handler) == SIG_ERR) {
         perror("signal");
         exit(1);
     }
+
     if (signal(SIGINT, signal_handler) == SIG_ERR) {
         perror("signal");
         exit(1);
     }
 }
 
-
+/* Function to read from the client */
 void read_command_from_client(int socket_fd, _command_payload *command_payload)
 {
     int read_bytes = read(socket_fd, command_payload, sizeof(_command_payload));
@@ -157,6 +163,21 @@ void read_command_from_client(int socket_fd, _command_payload *command_payload)
         pthread_exit(0);
     }
     else if (read_bytes < 0)
+    {
+        perror("socket");
+        pthread_exit(-1);
+    }
+}
+
+void write_response_to_client(int socket_fd, void * response_payload, int payload_size)
+{
+    int written_bytes = write(socket_fd, response_payload, payload_size);
+    if (written_bytes == 0)
+    {
+        printf("Client closed the connection\n");
+        pthread_exit(0);
+    }
+    else if (written_bytes < 0)
     {
         perror("socket");
         pthread_exit(-1);
@@ -174,18 +195,7 @@ void server_send_login_response(int socket_fd, bool is_login_success)
         memcpy(responsePayload.response_payload,SERVER_410_STRING, SERVER_410_STRING_SIZE);
     responsePayload.number_of_response_in_flight = 0;
 
-    int num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
-    if (num_bytes_written == 0)
-    {
-        printf("Connection to client is lost, closing");
-        close(socket_fd);
-        pthread_exit(0);
-    }
-    else if (num_bytes_written < 0)
-    {
-        perror("scoket");
-        exit(-1);
-    }
+    write_response_to_client(socket_fd, &responsePayload, sizeof(responsePayload));
 }
 
 void server_send_logout_response(int socket_fd, bool isLoggedIn)
@@ -198,19 +208,7 @@ void server_send_logout_response(int socket_fd, bool isLoggedIn)
     else
         memcpy(responsePayload.response_payload,SERVER_302_STRING, SERVER_302_STRING_SIZE);
     responsePayload.number_of_response_in_flight = 0;
-
-    int num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
-    if (num_bytes_written == 0)
-    {
-        printf("Connection to client is lost, closing");
-        close(socket_fd);
-        pthread_exit(0);
-    }
-    else if (num_bytes_written < 0)
-    {
-        perror("scoket");
-        exit(-1);
-    }
+    write_response_to_client(socket_fd, &responsePayload, sizeof(responsePayload));
 }
 
 void server_send_quit_response(int socket_fd)
@@ -220,19 +218,7 @@ void server_send_quit_response(int socket_fd)
     memcpy(responsePayload.command_id,LOGOUT_STRING,LOGOUT_STRING_SIZE);
     memcpy(responsePayload.response_payload,SERVER_200_STRING, SERVER_200_STRING_SIZE);
     responsePayload.number_of_response_in_flight = 0;
-
-    int num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
-    if (num_bytes_written == 0)
-    {
-        printf("Connection to client is lost, closing");
-        close(socket_fd);
-        pthread_exit(0);
-    }
-    else if (num_bytes_written < 0)
-    {
-        perror("scoket");
-        exit(-1);
-    }
+    write_response_to_client(socket_fd, &responsePayload, sizeof(responsePayload));
 }
 
 void server_send_look_response(int socket_fd, _command_look *command_look)
@@ -283,19 +269,7 @@ void server_send_look_response(int socket_fd, _command_look *command_look)
         sprintf(responsePayload.response_payload, "%s \n %s %d %s \n", SERVER_200_STRING, "Found", num_of_match_found, "match");
         responsePayload.number_of_response_in_flight = 1;
     }
-    int num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
-    if (num_bytes_written == 0)
-    {
-        printf("Connection to client is lost, closing");
-        close(socket_fd);
-        pthread_exit(0);
-    }
-    else if (num_bytes_written < 0)
-    {
-        perror("scoket");
-        exit(-1);
-    }
-
+    write_response_to_client(socket_fd, &responsePayload, sizeof(responsePayload));
 
     for (int i = 0; i < current_index; i++)
     {
@@ -307,36 +281,14 @@ void server_send_look_response(int socket_fd, _command_look *command_look)
             server_user_data[valid_array_idex[i]].last_name,
             server_user_data[valid_array_idex[i]].phone_number);
         responsePayload.number_of_response_in_flight = 1;
-        int num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
-        if (num_bytes_written == 0)
-        {
-            printf("Connection to client is lost, closing");
-            close(socket_fd);
-            pthread_exit(0);
-        }
-        else if (num_bytes_written < 0)
-        {
-            perror("scoket");
-            exit(-1);
-        }
+        write_response_to_client(socket_fd, &responsePayload, sizeof(responsePayload));
     }
 
     responsePayload.is_sucessfully_executed = true;
     memcpy(responsePayload.command_id,LOOK_STRING,LOOK_STRING_SIZE);
     memset(responsePayload.response_payload,0x00, sizeof(responsePayload.response_payload));
     responsePayload.number_of_response_in_flight = 0;
-    num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
-    if (num_bytes_written == 0)
-    {
-        printf("Connection to client is lost, closing");
-        close(socket_fd);
-        pthread_exit(0);
-    }
-    else if (num_bytes_written < 0)
-    {
-        perror("scoket");
-        exit(-1);
-    }
+    write_response_to_client(socket_fd, &responsePayload, sizeof(responsePayload));
 }
 
 void server_send_who_response(int socket_fd)
@@ -366,19 +318,7 @@ void server_send_who_response(int socket_fd)
         responsePayload.number_of_response_in_flight = 0;
     }
 
-    int num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
-    if (num_bytes_written == 0)
-    {
-        printf("Connection to client is lost, closing");
-        close(socket_fd);
-        pthread_exit(0);
-    }
-    else if (num_bytes_written < 0)
-    {
-        perror("scoket");
-        exit(-1);
-    }
-
+    write_response_to_client(socket_fd, &responsePayload, sizeof(responsePayload));
     for (int i = 0; i < sizeof (authenticated_user_list) / sizeof authenticated_user_list[0]; i++)
     {
         if (authenticated_user_list[i].isLoggedIn)
@@ -388,19 +328,7 @@ void server_send_who_response(int socket_fd)
             memcpy(responsePayload.command_id,WHO_STRING,WHO_STRING_SIZE);
             sprintf(responsePayload.response_payload, "%s \t %s \n", authenticated_user_list[i].user_id, authenticated_user_list[i].last_known_ip);
             responsePayload.number_of_response_in_flight = 1;
-            int num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
-            if (num_bytes_written == 0)
-            {
-                printf("Connection to client is lost, closing");
-                close(socket_fd);
-                pthread_exit(0);
-            }
-            else if (num_bytes_written < 0)
-            {
-                perror("scoket");
-                exit(-1);
-            }
-
+            write_response_to_client(socket_fd, &responsePayload, sizeof(responsePayload));
         }
     }
 
@@ -409,18 +337,7 @@ void server_send_who_response(int socket_fd)
     memcpy(responsePayload.command_id,WHO_STRING,WHO_STRING_SIZE);
     sprintf(responsePayload.response_payload, "%s\n","");
     responsePayload.number_of_response_in_flight = 0;
-    num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
-    if (num_bytes_written == 0)
-    {
-        printf("Connection to client is lost, closing");
-        close(socket_fd);
-        pthread_exit(0);
-    }
-    else if (num_bytes_written < 0)
-    {
-        perror("scoket");
-        exit(-1);
-    }
+    write_response_to_client(socket_fd, &responsePayload, sizeof(responsePayload));
 }
 
 void server_process_command(_client_interface *client_interface, _command_payload *received_command)
@@ -492,9 +409,6 @@ void *pthread_routine(void *arg)
     }
 
     free(arg);
-
-
-
     return NULL;
 }
 
