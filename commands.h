@@ -9,12 +9,21 @@
 #define MAX_PHONE_LENGTH 64u
 #define MAX_PASSWORD_LENGTH 64u
 #define MAX_SEARCH_STRING 64u
+#define MAX_ADDRESS_BOOK_SIZE 1024u
 
 #define MAX_ADDRESS_BOOK_ENTRIES 1024u
 
 
+typedef enum look_search_type
+{
+    search_first_name = 1,
+    search_last_name = 2,
+    search_phone_number = 3
+}_look_search_type;
+
 typedef struct server_address_book
 {
+    unsigned int record_index;
     unsigned char first_name[MAX_USER_ID];
     unsigned char last_name[MAX_USER_ID];
     unsigned char phone_number[MAX_PHONE_LENGTH];

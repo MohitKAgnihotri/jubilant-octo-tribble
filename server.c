@@ -14,6 +14,8 @@
 #define BACKLOG 10
 #define PORT_NUM 1313
 
+_server_address_book server_user_data[MAX_ADDRESS_BOOK_SIZE] = {{.record_index = 1001, .first_name = "David", .last_name = "Miller", .phone_number= "313-510-6001"},
+                                                                {.record_index = 1004, .first_name = "John", .last_name = "Miller", .phone_number= "315-123-1345"}};
 
 /* Thread routine to serve connection to client. */
 void *pthread_routine(void *arg);
@@ -233,6 +235,110 @@ void server_send_quit_response(int socket_fd)
     }
 }
 
+void server_send_look_response(int socket_fd, _command_look *command_look)
+{
+    int num_of_match_found = 0;
+    int valid_array_idex[MAX_ADDRESS_BOOK_SIZE];
+    int current_index = 0;
+    memset(valid_array_idex, -1, MAX_ADDRESS_BOOK_SIZE);
+
+    for (int i = 0; i < sizeof(server_user_data)/sizeof(server_user_data[0]); i++)
+    {
+        if (command_look->search_type == search_first_name)
+        {
+            if (strcmp(server_user_data[i].first_name, command_look->search_string) == 0)
+            {
+                num_of_match_found++;
+                valid_array_idex[current_index++] = i;
+            }
+        }
+        else if (command_look->search_type == search_last_name)
+        {
+            if (strcmp(server_user_data[i].last_name, command_look->search_string) == 0)
+            {
+                num_of_match_found++;
+                valid_array_idex[current_index++] = i;
+            }
+        }
+        else if (command_look->search_type == search_phone_number)
+        {
+            if (strcmp(server_user_data[i].phone_number, command_look->search_string) == 0)
+            {
+                num_of_match_found++;
+                valid_array_idex[current_index++] = i;
+            }
+        }
+    }
+
+    _response_payload responsePayload = { 0 };
+    responsePayload.is_sucessfully_executed = true;
+    memcpy(responsePayload.command_id, LOOK_STRING, LOOK_STRING_SIZE);
+    if (num_of_match_found == 0)
+    {
+        sprintf(responsePayload.response_payload, "%s \n", SERVER_404_STRING);
+        responsePayload.number_of_response_in_flight = 0;
+    }
+    else
+    {
+        sprintf(responsePayload.response_payload, "%s \n %s %d %s \n", SERVER_200_STRING, "Found", num_of_match_found, "match");
+        responsePayload.number_of_response_in_flight = 1;
+    }
+    int num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
+    if (num_bytes_written == 0)
+    {
+        printf("Connection to client is lost, closing");
+        close(socket_fd);
+        pthread_exit(0);
+    }
+    else if (num_bytes_written < 0)
+    {
+        perror("scoket");
+        exit(-1);
+    }
+
+
+    for (int i = 0; i < current_index; i++)
+    {
+        _response_payload responsePayload = {0};
+        responsePayload.is_sucessfully_executed = true;
+        memcpy(responsePayload.command_id,LOOK_STRING,LOOK_STRING_SIZE);
+        sprintf(responsePayload.response_payload, "%d \t %s \t %s \t %s \n", server_user_data[valid_array_idex[i]].record_index,
+            server_user_data[valid_array_idex[i]].first_name,
+            server_user_data[valid_array_idex[i]].last_name,
+            server_user_data[valid_array_idex[i]].phone_number);
+        responsePayload.number_of_response_in_flight = 1;
+        int num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
+        if (num_bytes_written == 0)
+        {
+            printf("Connection to client is lost, closing");
+            close(socket_fd);
+            pthread_exit(0);
+        }
+        else if (num_bytes_written < 0)
+        {
+            perror("scoket");
+            exit(-1);
+        }
+    }
+
+    responsePayload.is_sucessfully_executed = true;
+    memcpy(responsePayload.command_id,LOOK_STRING,LOOK_STRING_SIZE);
+    memset(responsePayload.response_payload,0x00, sizeof(responsePayload.response_payload));
+    responsePayload.number_of_response_in_flight = 0;
+    num_bytes_written = write(socket_fd, &responsePayload, sizeof(responsePayload));
+    if (num_bytes_written == 0)
+    {
+        printf("Connection to client is lost, closing");
+        close(socket_fd);
+        pthread_exit(0);
+    }
+    else if (num_bytes_written < 0)
+    {
+        perror("scoket");
+        exit(-1);
+    }
+}
+
 void server_send_who_response(int socket_fd)
 {
     _response_payload responsePayload = {0};
@@ -360,7 +466,9 @@ void server_process_command(_client_interface *client_interface, _command_payloa
     }
     else if (strncmp(received_command->command_id,LOOK_STRING, LOOK_STRING_SIZE) == 0)
     {
-
+        printf("Received Command = %s\n",received_command->command_id);
+        _command_look *received_look_command = (_command_look *)&received_command->command_payload[0];
+        server_send_look_response(client_interface->client_socket, received_look_command);
     }
     else
     {
