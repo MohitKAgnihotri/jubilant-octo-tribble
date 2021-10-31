@@ -8,7 +8,8 @@ link_libraries(pthread)
 
 add_executable(server
         server.c
-        server.h)
+        server.h
+        commands.c commands.h)
 
 add_executable(client
         client.c
